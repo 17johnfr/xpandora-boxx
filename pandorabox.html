@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pandora Box Firebase</title>
+  <style>
+    body {
+      background-color: black;
+      color: white;
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      padding: 60px 20px;
+      margin: 0;
+    }
+    #openText {
+      font-size: 2.5rem;
+      font-weight: 900;
+      cursor: pointer;
+      user-select: none;
+    }
+    #startButtonArea, #linkArea, #adminPanel {
+      margin-top: 40px;
+      display: none;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+      margin: 6px;
+    }
+    #message {
+      margin-top: 20px;
+      font-size: 1rem;
+      max-width: 300px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    input[type="text"] {
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      width: 60%;
+      max-width: 300px;
+      margin-bottom: 10px;
+    }
+    .linkItem {
+      margin-top: 8px;
+    }
+    #adminButton {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="openText" onclick="showStart()">Click to open the pandora box</div>
+
+<div id="startButtonArea">
+  <button id="enterButton" onclick="enterNow()">ENTER</button><br />
+  <button id="seeLinkButton" onclick="revealLink()">see the link</button><br />
+  <button id="adminButton" onclick="toggleAdmin()">admin</button>
+</div>
+
+<div id="linkArea">
+  <div id="message">you raddy?</div>
+  <button onclick="goBack()">or no</button>
+</div>
+
+<div id="adminPanel">
+  <h2>Admin Panel</h2>
+  <input type="text" id="newLink" placeholder="https://site.com" />
+  <br />
+  <button onclick="addLink()">Adaugă link</button>
+  <div id="linkList"></div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBXUlyUkiVppNXAbtwFasswbmkSVkd45wI",
+    authDomain: "xpandora-boxx.firebaseapp.com",
+    projectId: "xpandora-boxx",
+    storageBucket: "xpandora-boxx.firebasestorage.app",
+    messagingSenderId: "280709143319",
+    appId: "1:280709143319:web:5b82b4016da424bbeeb552"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  let sites = [];
+  let chosenSite = null;
+  let linkRevealed = false;
+
+  // Citește toate linkurile la start
+  async function loadLinks() {
+    const snapshot = await db.collection('links').get();
+    sites = [];
+    snapshot.forEach(doc => {
+      sites.push({ id: doc.id, url: doc.data().url });
+    });
+    renderLinkList();
+  }
+
+  async function saveLinkToDb(url) {
+    const docRef = await db.collection('links').add({ url });
+    sites.push({ id: docRef.id, url });
+    renderLinkList();
+  }
+
+  async function removeLinkFromDb(id) {
+    await db.collection('links').doc(id).delete();
+    sites = sites.filter(site => site.id !== id);
+    renderLinkList();
+  }
+
+  function saveLinks() {
+    // nu mai folosim localStorage când e Firebase
+  }
+
+  function showStart() {
+    document.getElementById('openText').style.display = 'none';
+    document.getElementById('startButtonArea').style.display = 'block';
+  }
+
+  function revealLink() {
+    if (!linkRevealed && sites.length > 0) {
+      chosenSite = sites[Math.floor(Math.random() * sites.length)];
+      document.getElementById('seeLinkButton').innerText = chosenSite.url;
+      document.getElementById('enterButton').style.display = 'none';
+      linkRevealed = true;
+    } else if (chosenSite) {
+      window.open(chosenSite.url, '_blank');
+    }
+    showLinkArea();
+  }
+
+  function enterNow() {
+    if (!chosenSite && sites.length > 0) {
+      chosenSite = sites[Math.floor(Math.random() * sites.length)];
+      linkRevealed = true;
+    }
+    if(chosenSite) {
+      window.open(chosenSite.url, '_blank');
+    }
+    resetPage();
+  }
+
+  function resetPage() {
+    chosenSite = null;
+    linkRevealed = false;
+    document.getElementById('seeLinkButton').innerText = 'see the link';
+    document.getElementById('enterButton').style.display = 'inline-block';
+    document.getElementById('startButtonArea').style.display = 'block';
+    document.getElementById('linkArea').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'none';
+    document.body.style.backgroundColor = "black";
+    document.body.style.color = "white";
+  }
+
+  function showLinkArea() {
+    document.body.style.backgroundColor = "#111111";
+    document.body.style.color = "#ffffff";
+    document.getElementById('linkArea').style.display = 'block';
+  }
+
+  function goBack() {
+    resetPage();
+  }
+
+  function toggleAdmin() {
+    const password = prompt("Enter admin password:");
+    if (password && password.toLowerCase() === "pandora") {
+      const adminPanel = document.getElementById('adminPanel');
+      adminPanel.style.display = adminPanel.style.display === 'block' ? 'none' : 'block';
+      renderLinkList();
+    } else {
+      alert("Wrong password. Access denied.");
+    }
+  }
+
+  async function addLink() {
+    const input = document.getElementById('newLink');
+    const url = input.value.trim();
+    if (url) {
+      await saveLinkToDb(url);
+      input.value = '';
+    }
+  }
+
+  async function removeLink(index) {
+    const id = sites[index].id;
+    await removeLinkFromDb(id);
+  }
+
+  function renderLinkList() {
+    const listDiv = document.getElementById('linkList');
+    listDiv.innerHTML = '';
+    sites.forEach((site, index) => {
+      const item = document.createElement('div');
+      item.className = 'linkItem';
+      item.innerHTML = `${site.url} <button onclick="removeLink(${index})">X</button>`;
+      listDiv.appendChild(item);
+    });
+  }
+
+  // Detectează 5 clickuri rapide pentru admin button
+  let clickCount = 0;
+  let clickTimer;
+
+  document.addEventListener('click', () => {
+    clickCount++;
+    if (clickCount === 1) {
+      clickTimer = setTimeout(() => { clickCount = 0 }, 1000);
+    }
+    if (clickCount === 5) {
+      clearTimeout(clickTimer);
+      document.getElementById('adminButton').style.display = 'inline-block';
+      clickCount = 0;
+    }
+  });
+
+  // La load, ia linkurile din Firebase
+  loadLinks();
+</script>
+
+</body>
+</html>
+
